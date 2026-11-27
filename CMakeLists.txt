@@ -69,6 +69,7 @@ endfunction()
 add_library(voxelforge_engine STATIC
     src/core/Benchmark.cpp
     src/core/CommandLine.cpp
+    src/core/DayNightCycle.cpp
     src/core/Settings.cpp
     src/physics/Collision.cpp
     src/physics/Raycast.cpp
@@ -118,6 +119,8 @@ if(VOXELFORGE_BUILD_GAME)
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/chunk.vs
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/chunk.fs
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/water.fs
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/sky.vs
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/sky.fs
     )
     set(VOXELFORGE_SHADER_HEADER ${CMAKE_CURRENT_BINARY_DIR}/generated/EmbeddedShaders.hpp)
     add_custom_command(
@@ -136,6 +139,7 @@ if(VOXELFORGE_BUILD_GAME)
         src/render/GpuMesh.cpp
         src/render/Renderer.cpp
         src/render/ShaderProgram.cpp
+        src/render/Sky.cpp
         src/ui/Hud.cpp
         ${VOXELFORGE_SHADER_HEADER}
     )

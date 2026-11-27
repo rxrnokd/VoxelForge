@@ -1,12 +1,14 @@
 #pragma once
 
 #include "core/CommandLine.hpp"
+#include "core/DayNightCycle.hpp"
 #include "core/Input.hpp"
 #include "core/Settings.hpp"
 #include "physics/Raycast.hpp"
 #include "player/Inventory.hpp"
 #include "player/Player.hpp"
 #include "render/Renderer.hpp"
+#include "render/Sky.hpp"
 #include "ui/Hud.hpp"
 #include "world/World.hpp"
 
@@ -46,6 +48,8 @@ private:
     Input m_input;
     std::unique_ptr<World> m_world;
     std::unique_ptr<Renderer> m_renderer;
+    std::unique_ptr<Sky> m_sky;
+    DayNightCycle m_dayNight;
     Player m_player;
     Inventory m_inventory;
     Hud m_hud;

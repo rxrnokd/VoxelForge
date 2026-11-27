@@ -1,10 +1,12 @@
 #include "doctest.h"
 
 #include "core/CommandLine.hpp"
+#include "core/DayNightCycle.hpp"
 #include "core/Math.hpp"
 #include "core/Settings.hpp"
 
 #include <array>
+#include <cmath>
 
 using namespace voxelforge;
 
@@ -116,4 +118,35 @@ TEST_CASE("settings: invalid values are clamped or ignored") {
     CHECK(s.renderDistance == Settings::kMaxRenderDistance);
     CHECK(s.mouseSensitivity == doctest::Approx(Settings{}.mouseSensitivity));
     CHECK(s.fovDegrees == doctest::Approx(40.0f));
+}
+
+TEST_CASE("day/night: noon is bright, midnight is dark") {
+    const SkyState noon = DayNightCycle::computeSky(0.25f);
+    const SkyState midnight = DayNightCycle::computeSky(0.75f);
+    CHECK(noon.sunElevation > 0.9f);
+    CHECK(midnight.sunElevation < -0.9f);
+    CHECK(noon.daylight == doctest::Approx(1.0f));
+    CHECK(midnight.daylight == doctest::Approx(0.0f));
+    CHECK(noon.ambientLight.x > midnight.ambientLight.x * 3.0f);
+    CHECK(noon.directLight.x > midnight.directLight.x);
+    CHECK(midnight.starVisibility == doctest::Approx(1.0f));
+    CHECK(noon.starVisibility == doctest::Approx(0.0f));
+    CHECK(noon.zenithColor.z > midnight.zenithColor.z);
+    // At night the moon (opposite the sun) provides the light direction.
+    CHECK(midnight.lightDirection.y > 0.9f);
+    CHECK(length(noon.sunDirection) == doctest::Approx(1.0f));
+}
+
+TEST_CASE("day/night: sunrise and sunset glow, time wraps") {
+    const SkyState sunset = DayNightCycle::computeSky(0.5f);
+    CHECK(std::fabs(sunset.sunElevation) < 0.05f);
+    CHECK(sunset.horizonColor.x > sunset.horizonColor.z); // warm horizon
+    DayNightCycle cycle(100.0f, 0.9f);
+    cycle.advance(20.0f); // +0.2 days
+    CHECK(cycle.timeOfDay() == doctest::Approx(0.1f).epsilon(1e-3));
+    cycle.setTimeOfDay(0.25f);
+    CHECK(cycle.hours() == 12);
+    CHECK(cycle.minutes() == 0);
+    cycle.setTimeOfDay(0.0f);
+    CHECK(cycle.hours() == 6);
 }

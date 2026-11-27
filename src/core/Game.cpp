@@ -20,6 +20,7 @@ Game::Game(LaunchOptions options) : m_options(std::move(options)) {}
 Game::~Game() {
     // GPU resources must be released while the OpenGL context still exists.
     m_renderer.reset();
+    m_sky.reset();
     if (m_windowOpen) {
         CloseWindow();
     }
@@ -50,9 +51,12 @@ bool Game::initialize() {
     SetExitKey(KEY_NULL);
 
     m_renderer = std::make_unique<Renderer>();
-    if (!m_renderer->init()) {
+    m_sky = std::make_unique<Sky>();
+    if (!m_renderer->init() || !m_sky->init()) {
         return false;
     }
+    m_dayNight.setDayLength(m_settings.dayLengthSeconds);
+    m_dayNight.setTimeOfDay(m_options.timeOfDay.value_or(m_screenshotMode ? 0.12f : 0.05f));
 
     m_world = std::make_unique<World>(m_options.seed.value_or(1337));
 
@@ -110,6 +114,9 @@ void Game::update(const FrameInput& input, float dt) {
         m_hud.notifySelectionChanged();
     }
     m_hud.update(dt);
+    if (!m_screenshotMode) {
+        m_dayNight.advance(input.fastTime ? dt * 60.0f : dt);
+    }
 
     // Fixed time step physics; rendering interpolates between the last two states.
     // Screenshots taken from an explicit --pos keep the camera frozen in place.
@@ -176,17 +183,22 @@ void Game::render() {
     m_camera.aspect = static_cast<float>(GetScreenWidth()) / static_cast<float>(std::max(1, GetScreenHeight()));
     m_camera.farPlane = static_cast<float>(m_renderDistance * kChunkSize) * 1.5f + 64.0f;
 
-    const float fogEnd = static_cast<float>(m_renderDistance * kChunkSize) - 8.0f;
-    SceneLighting lighting;
-    lighting.fogEnd = fogEnd;
-    lighting.fogStart = fogEnd * 0.55f;
-    lighting.timeSeconds = static_cast<float>(GetTime());
+    const IVec3 eyeBlock{fastFloor(m_camera.position.x), fastFloor(m_camera.position.y),
+                         fastFloor(m_camera.position.z)};
+    const bool underwater = m_world->getBlock(eyeBlock.x, eyeBlock.y, eyeBlock.z) == BlockType::Water;
+    const SkyState sky = m_dayNight.sky();
+    const SceneLighting lighting = makeSceneLighting(sky, static_cast<float>(m_renderDistance * kChunkSize),
+                                                     static_cast<float>(GetTime()), underwater);
 
     BeginDrawing();
-    ClearBackground(Color{158, 194, 242, 255});
+    ClearBackground(BLACK);
+    m_sky->draw(m_camera, sky);
     m_renderer->drawWorld(m_camera, lighting);
     if (m_target) {
         m_renderer->drawBlockOutline(m_camera, m_target->block);
+    }
+    if (underwater) {
+        DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), Color{20, 60, 140, 90});
     }
     m_hud.draw(m_renderer->atlasTexture(), m_inventory, GetScreenWidth(), GetScreenHeight());
     DrawFPS(10, 10);

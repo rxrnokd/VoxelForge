@@ -18,7 +18,7 @@ out vec4 fragColor;
 const vec3 NORMALS[6] = vec3[6](vec3(-1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(0.0, -1.0, 0.0),
                                 vec3(0.0, 1.0, 0.0), vec3(0.0, 0.0, -1.0), vec3(0.0, 0.0, 1.0));
 // Fixed per-face ambient shading keeps block shapes readable even without sunlight.
-const float FACE_SHADE[6] = float[6](0.78, 0.78, 0.55, 1.0, 0.66, 0.66);
+const float FACE_SHADE[6] = float[6](0.84, 0.84, 0.58, 1.0, 0.72, 0.72);
 
 const int TILE_PIXELS = 16;
 const int ATLAS_COLUMNS = 16;
