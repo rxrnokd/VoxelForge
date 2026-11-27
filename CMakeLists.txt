@@ -68,6 +68,10 @@ endfunction()
 # ---------------------------------------------------------------------------
 add_library(voxelforge_engine STATIC
     src/core/CommandLine.cpp
+    src/world/Block.cpp
+    src/world/Chunk.cpp
+    src/world/Noise.cpp
+    src/world/TerrainGenerator.cpp
 )
 target_include_directories(voxelforge_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(voxelforge_engine PUBLIC Threads::Threads)
@@ -139,7 +143,10 @@ if(VOXELFORGE_BUILD_TESTS)
 
     add_executable(voxelforge_tests
         tests/test_main.cpp
+        tests/test_chunk.cpp
         tests/test_core.cpp
+        tests/test_noise.cpp
+        tests/test_terrain.cpp
     )
     target_include_directories(voxelforge_tests SYSTEM PRIVATE ${doctest_SOURCE_DIR})
     target_link_libraries(voxelforge_tests PRIVATE voxelforge_engine)
