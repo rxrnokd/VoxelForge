@@ -3,6 +3,7 @@
 in vec3 vLocalPos;
 in vec3 vViewPos;
 in float vAo;
+in float vSky;
 flat in int vFace;
 flat in int vTile;
 
@@ -57,7 +58,11 @@ void main() {
     vec3 normal = NORMALS[vFace];
     float direct = max(dot(normal, uSunDir), 0.0);
     float ao = mix(0.38, 1.0, vAo * vAo * (3.0 - 2.0 * vAo));
-    vec3 light = (uAmbient * FACE_SHADE[vFace] + uSunColor * direct) * ao;
+    // Without sky exposure only a dim fraction of the ambient light remains (caves,
+    // overhangs, the ground under tree canopies); direct light needs an open sky.
+    vec3 caveAmbient = uAmbient * 0.3 + vec3(0.085, 0.085, 0.10);
+    vec3 ambient = mix(caveAmbient, uAmbient, vSky);
+    vec3 light = (ambient * FACE_SHADE[vFace] + uSunColor * direct * vSky * vSky) * ao;
     vec3 color = albedo.rgb * light;
 
     float dist = length(vViewPos.xz);

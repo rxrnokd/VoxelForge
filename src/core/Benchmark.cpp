@@ -71,6 +71,7 @@ int runBenchmark(const BenchmarkOptions& options) {
     ChunkMesh mesh;
     MeshTotals culled;
     MeshTotals greedy;
+    std::int64_t naiveVertices = 0; // one cube (6 faces, 36 vertices) per non-air block
     for (int z = 1; z < side - 1; ++z) {
         for (int x = 1; x < side - 1; ++x) {
             ChunkNeighborhood n;
@@ -78,6 +79,9 @@ int runBenchmark(const BenchmarkOptions& options) {
                 for (int dx = -1; dx <= 1; ++dx) {
                     n.at(dx, dz) = chunks[static_cast<std::size_t>((z + dz) * side + (x + dx))].get();
                 }
+            }
+            for (const BlockType b : n.center()->storage()) {
+                naiveVertices += b != BlockType::Air ? 36 : 0;
             }
             for (int pass = 0; pass < 2; ++pass) {
                 const MeshingMode mode = pass == 0 ? MeshingMode::Culled : MeshingMode::Greedy;
@@ -96,12 +100,17 @@ int runBenchmark(const BenchmarkOptions& options) {
         std::printf("%-19s: %7.3f ms/chunk  %8.0f quads/chunk  %9.0f vertices/chunk\n", name, t.timeMs.mean(),
                     static_cast<double>(t.quads) / meshed, static_cast<double>(t.vertices) / meshed);
     };
+    std::printf("Naive (per block)  :                   %8.0f quads/chunk  %9.0f vertices/chunk\n",
+                static_cast<double>(naiveVertices) / 6.0 / meshed, static_cast<double>(naiveVertices) / meshed);
     report("Meshing (culled)", culled);
     report("Meshing (greedy)", greedy);
     const double reduction =
         culled.vertices > 0 ? 100.0 * (1.0 - static_cast<double>(greedy.vertices) / static_cast<double>(culled.vertices))
                             : 0.0;
-    std::printf("Greedy reduction   : %6.1f%% fewer vertices (%d chunks meshed)\n", reduction, meshed);
+    std::printf("Greedy vs culled   : %6.1f%% fewer vertices (%d chunks meshed)\n", reduction, meshed);
+    std::printf("Greedy vs naive    : %6.2f%% of the vertices remain\n",
+                naiveVertices > 0 ? 100.0 * static_cast<double>(greedy.vertices) / static_cast<double>(naiveVertices)
+                                  : 0.0);
     std::printf("Vertex size        : %zu bytes -> %.1f KiB GPU memory per chunk (greedy)\n", sizeof(ChunkVertex),
                 static_cast<double>(greedy.vertices) / meshed * sizeof(ChunkVertex) / 1024.0);
 

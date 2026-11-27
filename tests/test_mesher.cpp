@@ -49,8 +49,9 @@ TEST_CASE("mesher: single block has six faces in both modes") {
 }
 
 TEST_CASE("mesher: hidden faces are removed and greedy merging reduces quads") {
+    // A floating 3x3x3 cube.
     auto chunk = std::make_unique<Chunk>();
-    for (int y = 1; y <= 3; ++y)
+    for (int y = 10; y <= 12; ++y)
         for (int z = 1; z <= 3; ++z)
             for (int x = 1; x <= 3; ++x)
                 chunk->set(x, y, z, BlockType::Stone);
@@ -59,7 +60,17 @@ TEST_CASE("mesher: hidden faces are removed and greedy merging reduces quads") {
     mesher.build(alone(*chunk), mesh, MeshingMode::Culled);
     CHECK(quads(mesh) == 6 * 9); // only the outer shell: 9 faces per side
     mesher.build(alone(*chunk), mesh, MeshingMode::Greedy);
-    CHECK(quads(mesh) == 6); // each side collapses into a single quad
+    int perFace[6] = {};
+    for (std::size_t i = 0; i < mesh.opaque.size(); i += 6) {
+        ++perFace[static_cast<int>(mesh.opaque[i].face())];
+    }
+    // Top and sides are uniformly lit: each collapses into a single quad. The underside
+    // has sky light fading in from its edges, so it keeps a few quads.
+    for (const Face f : {Face::NegX, Face::PosX, Face::PosY, Face::NegZ, Face::PosZ}) {
+        CHECK(perFace[static_cast<int>(f)] == 1);
+    }
+    CHECK(perFace[static_cast<int>(Face::NegY)] >= 1);
+    CHECK(perFace[static_cast<int>(Face::NegY)] <= 9);
 }
 
 TEST_CASE("mesher: a full flat layer becomes very few quads") {
@@ -210,5 +221,36 @@ TEST_CASE("mesher: greedy meshing of real terrain is much smaller than culled") 
     mesher.build(n, culled, MeshingMode::Culled);
     mesher.build(n, greedy, MeshingMode::Greedy);
     CHECK(greedy.vertexCount() > 0);
-    CHECK(greedy.vertexCount() * 2 < culled.vertexCount());
+    // Trees, ores and AO variation limit merging on real terrain, but greedy meshing
+    // still removes a large share of the vertices.
+    CHECK(greedy.vertexCount() * 10 < culled.vertexCount() * 7);
+}
+
+TEST_CASE("mesher: sky exposure darkens faces under overhangs") {
+    auto chunk = std::make_unique<Chunk>();
+    for (int z = 0; z < kChunkSize; ++z)
+        for (int x = 0; x < kChunkSize; ++x)
+            chunk->set(x, 10, z, BlockType::Stone); // floor
+    for (int z = 4; z < 12; ++z)
+        for (int x = 4; x < 12; ++x)
+            chunk->set(x, 14, z, BlockType::Stone); // roof hovering over the middle
+    ChunkMesher mesher;
+    ChunkMesh mesh;
+    mesher.build(alone(*chunk), mesh, MeshingMode::Culled);
+    int shadedUnderRoof = 0;
+    int litInOpen = 0;
+    for (const ChunkVertex& v : mesh.opaque) {
+        if (v.face() != Face::PosY || v.y != 11 * 16) continue; // floor top faces
+        const int x = v.x / 16;
+        const int z = v.z / 16;
+        if (x >= 6 && x <= 10 && z >= 6 && z <= 10) {
+            CHECK(v.sky() == 0);
+            ++shadedUnderRoof;
+        } else if (x <= 1 || z <= 1) {
+            CHECK(v.sky() == 4);
+            ++litInOpen;
+        }
+    }
+    CHECK(shadedUnderRoof > 0);
+    CHECK(litInOpen > 0);
 }

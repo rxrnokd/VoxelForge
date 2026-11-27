@@ -15,17 +15,20 @@ struct ChunkVertex {
     std::uint16_t x = 0;
     std::uint16_t y = 0;
     std::uint16_t z = 0;
-    std::uint16_t data = 0; // bits 0-2 face, bits 3-4 ambient occlusion, bits 5-12 atlas tile
+    // bits 0-2 face, 3-4 ambient occlusion (0..3), 5-12 atlas tile, 13-15 sky light (0..4)
+    std::uint16_t data = 0;
 
     static constexpr std::uint16_t kSubUnits = 16; // fixed point scale
+    static constexpr int kMaxSky = 4;
 
-    static constexpr std::uint16_t pack(Face face, int ao, Tile tile) {
+    static constexpr std::uint16_t pack(Face face, int ao, Tile tile, int sky = kMaxSky) {
         return static_cast<std::uint16_t>(static_cast<unsigned>(face) | (static_cast<unsigned>(ao) << 3) |
-                                          (static_cast<unsigned>(tile) << 5));
+                                          (static_cast<unsigned>(tile) << 5) | (static_cast<unsigned>(sky) << 13));
     }
     constexpr Face face() const { return static_cast<Face>(data & 7u); }
     constexpr int ao() const { return (data >> 3) & 3; }
     constexpr Tile tile() const { return static_cast<Tile>((data >> 5) & 255u); }
+    constexpr int sky() const { return (data >> 13) & 7; }
 };
 static_assert(sizeof(ChunkVertex) == 8, "ChunkVertex must stay 8 bytes");
 

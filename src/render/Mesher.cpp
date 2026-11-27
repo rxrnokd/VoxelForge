@@ -1,6 +1,7 @@
 #include "render/Mesher.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 
 namespace voxelforge {
@@ -10,9 +11,12 @@ namespace {
 //   bits 0-7   block type
 //   bits 8-15  ambient occlusion of the four corners (2 bits each)
 //   bit  16    "lowered" water surface (block above is not water)
+//   bits 17-28 sky exposure of the four corners (3 bits each, 0..4)
 constexpr std::uint32_t kAoShift = 8;
 constexpr std::uint32_t kLoweredBit = 1u << 16;
+constexpr std::uint32_t kSkyShift = 17;
 constexpr std::uint32_t kFullBrightAo = 0xFFu << kAoShift;
+constexpr std::uint32_t kFullSky = (4u | (4u << 3) | (4u << 6) | (4u << 9)) << kSkyShift;
 constexpr int kWaterDrop = 2; // water surface sits 2/16 below the block top
 
 // Whether the face of `self` that touches `neighbor` can be seen.
@@ -37,7 +41,40 @@ constexpr int kAxisStride[3] = {1, ChunkMesher::kPadX * ChunkMesher::kPadZ, Chun
 
 ChunkMesher::ChunkMesher()
     : m_padded(static_cast<std::size_t>(kPadX * kPadY * kPadZ), BlockType::Air),
+      m_sky(static_cast<std::size_t>(kPadX * kPadY * kPadZ), 0u),
       m_mask(static_cast<std::size_t>(kChunkHeight * kChunkSize), 0u) {}
+
+void ChunkMesher::computeSkyExposure(const ChunkNeighborhood& neighborhood, int topY) {
+    // Height of the topmost opaque block of every padded column, read from the full
+    // source chunks (the padded copy stops at topY). Cells above it see the sky.
+    std::array<int, 9> chunkTop{};
+    for (std::size_t i = 0; i < 9; ++i) {
+        chunkTop[i] = neighborhood.chunks[i] != nullptr ? neighborhood.chunks[i]->highestNonAir() : -1;
+    }
+    const int lastLayer = std::min(topY, kChunkHeight);
+    for (int z = -1; z <= kChunkSize; ++z) {
+        const int dz = z < 0 ? -1 : (z >= kChunkSize ? 1 : 0);
+        for (int x = -1; x <= kChunkSize; ++x) {
+            const int dx = x < 0 ? -1 : (x >= kChunkSize ? 1 : 0);
+            const std::size_t which = static_cast<std::size_t>((dz + 1) * 3 + (dx + 1));
+            const Chunk* chunk = neighborhood.chunks[which];
+            int height = -1;
+            if (chunk != nullptr) {
+                const int lx = x - dx * kChunkSize;
+                const int lz = z - dz * kChunkSize;
+                for (int y = chunkTop[which]; y >= 0; --y) {
+                    if (isOpaque(chunk->get(lx, y, lz))) {
+                        height = y;
+                        break;
+                    }
+                }
+            }
+            for (int y = -1; y <= lastLayer; ++y) {
+                m_sky[static_cast<std::size_t>(padIndex(x, y, z))] = y > height ? 1u : 0u;
+            }
+        }
+    }
+}
 
 void ChunkMesher::copyNeighborhood(const ChunkNeighborhood& neighborhood, int topY) {
     // Layer below the world: treat as solid so the underside of bedrock is never meshed.
@@ -81,6 +118,7 @@ void ChunkMesher::build(const ChunkNeighborhood& neighborhood, ChunkMesh& out, M
         return;
     }
     copyNeighborhood(neighborhood, maxY + 1);
+    computeSkyExposure(neighborhood, maxY + 1);
 
     out.minY = kChunkHeight;
     out.maxY = 0;
@@ -106,6 +144,7 @@ void ChunkMesher::meshFace(int face, int maxY, ChunkMesh& out, MeshingMode mode)
     const int neighborOffset = positive ? kAxisStride[d] : -kAxisStride[d];
     const int up = kAxisStride[1];
     const BlockType* blocks = m_padded.data();
+    const std::uint8_t* skyCells = m_sky.data();
     std::uint32_t* mask = m_mask.data();
     const bool greedy = mode == MeshingMode::Greedy;
 
@@ -123,7 +162,7 @@ void ChunkMesher::meshFace(int face, int maxY, ChunkMesh& out, MeshingMode mode)
                     const int q = index + neighborOffset;
                     if (faceVisible(self, blocks[q])) {
                         if (isTranslucent(self)) {
-                            key = static_cast<std::uint32_t>(self) | kFullBrightAo;
+                            key = static_cast<std::uint32_t>(self) | kFullBrightAo | kFullSky;
                             if (blocks[index + up] != self) {
                                 key |= kLoweredBit;
                             }
@@ -137,8 +176,22 @@ void ChunkMesher::meshFace(int face, int maxY, ChunkMesh& out, MeshingMode mode)
                             const int ao1 = vertexAo(sPosU, sNegV, occ(q + su - sv));
                             const int ao2 = vertexAo(sPosU, sPosV, occ(q + su + sv));
                             const int ao3 = vertexAo(sNegU, sPosV, occ(q - su + sv));
+                            // Smooth sky light: count sky-exposed cells around each corner;
+                            // opaque cells borrow the face cell's value (AO darkens walls).
+                            const int skyQ = skyCells[q];
+                            auto sky = [&](int at) { return isOpaque(blocks[at]) ? skyQ : skyCells[at]; };
+                            const int kNegU = sky(q - su);
+                            const int kPosU = sky(q + su);
+                            const int kNegV = sky(q - sv);
+                            const int kPosV = sky(q + sv);
+                            auto corner = [&](int side1, int side2, int at) { return (side1 && side2) ? skyQ : sky(at); };
+                            const int sky0 = skyQ + kNegU + kNegV + corner(sNegU, sNegV, q - su - sv);
+                            const int sky1 = skyQ + kPosU + kNegV + corner(sPosU, sNegV, q + su - sv);
+                            const int sky2 = skyQ + kPosU + kPosV + corner(sPosU, sPosV, q + su + sv);
+                            const int sky3 = skyQ + kNegU + kPosV + corner(sNegU, sPosV, q - su + sv);
                             key = static_cast<std::uint32_t>(self) |
-                                  static_cast<std::uint32_t>(ao0 | (ao1 << 2) | (ao2 << 4) | (ao3 << 6)) << kAoShift;
+                                  static_cast<std::uint32_t>(ao0 | (ao1 << 2) | (ao2 << 4) | (ao3 << 6)) << kAoShift |
+                                  static_cast<std::uint32_t>(sky0 | (sky1 << 3) | (sky2 << 6) | (sky3 << 9)) << kSkyShift;
                         }
                     }
                 }
@@ -228,8 +281,10 @@ void ChunkMesher::emitQuad(int face, int slice, int i, int j, int w, int h, std:
     const auto type = static_cast<BlockType>(key & 0xFFu);
     const Tile tile = blockTile(type, static_cast<Face>(face));
     int ao[4];
+    int sky[4];
     for (int k = 0; k < 4; ++k) {
         ao[k] = static_cast<int>((key >> (kAoShift + 2u * static_cast<unsigned>(k))) & 3u);
+        sky[k] = static_cast<int>((key >> (kSkyShift + 3u * static_cast<unsigned>(k))) & 7u);
     }
 
     // Negative faces reverse the winding so every quad is counter-clockwise from outside.
@@ -245,7 +300,7 @@ void ChunkMesher::emitQuad(int face, int slice, int i, int j, int w, int h, std:
         quad[k].x = static_cast<std::uint16_t>(c[0]);
         quad[k].y = static_cast<std::uint16_t>(c[1]);
         quad[k].z = static_cast<std::uint16_t>(c[2]);
-        quad[k].data = ChunkVertex::pack(static_cast<Face>(face), quadAo[k], tile);
+        quad[k].data = ChunkVertex::pack(static_cast<Face>(face), quadAo[k], tile, sky[order[k]]);
     }
 
     // Split along the diagonal whose corners are brighter; otherwise AO gradients show

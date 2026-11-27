@@ -79,6 +79,7 @@ add_library(voxelforge_engine STATIC
     src/render/Mesher.cpp
     src/render/TextureAtlas.cpp
     src/threading/ThreadPool.cpp
+    src/world/Biome.cpp
     src/world/Block.cpp
     src/world/Chunk.cpp
     src/world/Noise.cpp

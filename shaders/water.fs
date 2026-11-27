@@ -3,6 +3,7 @@
 in vec3 vLocalPos;
 in vec3 vViewPos;
 in float vAo;
+in float vSky;
 flat in int vFace;
 flat in int vTile;
 
