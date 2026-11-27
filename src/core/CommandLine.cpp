@@ -132,6 +132,10 @@ CommandLineResult parseCommandLine(int argc, const char* const* argv) {
             o.freshWorld = true;
         } else if (arg == "--no-save") {
             o.noSave = true;
+        } else if (arg == "--debug") {
+            o.showDebug = true;
+        } else if (arg == "--menu") {
+            o.showMenu = true;
         } else {
             result.error = std::string("unknown option ") + std::string(arg);
             return result;
@@ -154,6 +158,8 @@ const char* commandLineUsage() {
            "  --screenshot FILE     render --frames frames, save a PNG and exit\n"
            "  --frames N            frames to render in screenshot mode (default 10)\n"
            "  --benchmark [--quick] print chunk generation / meshing statistics and exit\n"
+           "  --debug               start with the F3 debug overlay visible\n"
+           "  --menu                start with the pause menu open\n"
            "  --help                show this help\n";
 }
 

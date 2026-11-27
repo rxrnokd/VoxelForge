@@ -1,5 +1,6 @@
 #pragma once
 
+#include "io/SaveFile.hpp"
 #include "physics/AABB.hpp"
 #include "render/ChunkMesh.hpp"
 #include "threading/ConcurrentQueue.hpp"
@@ -82,10 +83,11 @@ public:
     static int chunksAffectedBy(int x, int z, ChunkPos out[4]);
 
     // --- Persistence -----------------------------------------------------------------
-    // Every player-modified chunk, loaded or not.
-    std::vector<std::pair<ChunkPos, std::shared_ptr<const Chunk>>> modifiedChunks() const;
-    // Registers a modified chunk loaded from a save file; it replaces generation.
-    void addModifiedChunk(ChunkPos pos, std::shared_ptr<const Chunk> chunk);
+    // Every player-modified chunk, loaded or not, run-length encoded for saving.
+    std::vector<SavedChunk> modifiedChunks() const;
+    // Registers a modified chunk from a save file; it replaces generation. Returns false
+    // when the data does not decode to a valid chunk.
+    bool addModifiedChunk(const SavedChunk& chunk);
 
     // A walkable spawn point (feet position) near the given column.
     Vec3 findSpawnPoint(int nearX, int nearZ) const;
@@ -126,7 +128,8 @@ private:
 
     TerrainGenerator m_generator;
     std::unordered_map<ChunkPos, Entry, ChunkPosHash> m_chunks;
-    std::unordered_map<ChunkPos, std::shared_ptr<const Chunk>, ChunkPosHash> m_storedModified; // unloaded edits
+    // Player edits of unloaded chunks, kept RLE compressed (a few KiB instead of 64 KiB).
+    std::unordered_map<ChunkPos, std::vector<std::uint8_t>, ChunkPosHash> m_storedModified;
 
     std::vector<Offset> m_generateOffsets; // sorted by distance
     std::vector<Offset> m_meshOffsets;     // sorted by distance

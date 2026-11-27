@@ -71,6 +71,8 @@ add_library(voxelforge_engine STATIC
     src/core/CommandLine.cpp
     src/core/DayNightCycle.cpp
     src/core/Settings.cpp
+    src/io/Rle.cpp
+    src/io/SaveFile.cpp
     src/physics/Collision.cpp
     src/physics/Raycast.cpp
     src/player/Inventory.cpp
@@ -141,7 +143,9 @@ if(VOXELFORGE_BUILD_GAME)
         src/render/Renderer.cpp
         src/render/ShaderProgram.cpp
         src/render/Sky.cpp
+        src/ui/DebugOverlay.cpp
         src/ui/Hud.cpp
+        src/ui/PauseMenu.cpp
         ${VOXELFORGE_SHADER_HEADER}
     )
     target_include_directories(voxelforge PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -175,6 +179,8 @@ if(VOXELFORGE_BUILD_TESTS)
         tests/test_noise.cpp
         tests/test_player.cpp
         tests/test_raycast.cpp
+        tests/test_rle.cpp
+        tests/test_savefile.cpp
         tests/test_threadpool.cpp
         tests/test_world.cpp
         tests/test_terrain.cpp

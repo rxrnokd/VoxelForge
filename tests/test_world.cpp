@@ -105,6 +105,28 @@ TEST_CASE("world: distant chunks unload and modified chunks survive a round trip
     CHECK(world.getBlock(5, 150, 5) == BlockType::Glass);
 }
 
+TEST_CASE("world: save data round trip restores edits") {
+    std::vector<SavedChunk> saved;
+    {
+        World world(2468, 2);
+        REQUIRE(world.waitForArea({0, 80, 0}, 2, 2, 60.0));
+        REQUIRE(world.setBlock(3, 180, 4, BlockType::DiamondOre));
+        REQUIRE(world.setBlock(-20, 181, 9, BlockType::Planks));
+        saved = world.modifiedChunks();
+    }
+    CHECK(saved.size() == 2);
+    World world(2468, 2);
+    for (const SavedChunk& chunk : saved) {
+        CHECK(world.addModifiedChunk(chunk));
+    }
+    SavedChunk broken{{50, 50}, {1, 2, 3}};
+    CHECK_FALSE(world.addModifiedChunk(broken));
+    REQUIRE(world.waitForArea({0, 80, 0}, 2, 2, 60.0));
+    CHECK(world.getBlock(3, 180, 4) == BlockType::DiamondOre);
+    CHECK(world.getBlock(-20, 181, 9) == BlockType::Planks);
+    CHECK(world.stats().modifiedChunks == 2);
+}
+
 TEST_CASE("world: affected chunk computation") {
     ChunkPos out[4];
     CHECK(World::chunksAffectedBy(5, 5, out) == 1);

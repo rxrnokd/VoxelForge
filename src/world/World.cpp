@@ -121,7 +121,7 @@ void World::unloadFarChunks() {
         }
         const Entry& e = it->second;
         if (e.modified && e.chunk) {
-            m_storedModified[it->first] = e.chunk;
+            m_storedModified[it->first] = encodeChunk(it->first, *e.chunk).rle;
         }
         if (e.hasMesh || e.meshing) {
             m_unloaded.push_back(it->first);
@@ -140,13 +140,18 @@ void World::scheduleGeneration() {
         const auto stored = m_storedModified.find(pos);
         if (stored != m_storedModified.end()) {
             // Player-modified chunks come back from memory instead of the generator.
-            Entry& e = m_chunks[pos];
-            e.id = ++m_nextId;
-            e.chunk = std::move(stored->second);
-            e.modified = true;
-            e.meshDirty = true;
+            auto chunk = std::make_shared<Chunk>();
+            const bool valid = decodeChunk(stored->second, *chunk);
             m_storedModified.erase(stored);
-            continue;
+            if (valid) {
+                Entry& e = m_chunks[pos];
+                e.id = ++m_nextId;
+                e.chunk = std::move(chunk);
+                e.modified = true;
+                e.meshDirty = true;
+                continue;
+            }
+            // Corrupt data: fall through and regenerate the chunk from the seed.
         }
         if (m_generationInFlight >= limit) {
             m_scanNeeded = true; // more to do next frame
@@ -386,36 +391,49 @@ int World::chunksAffectedBy(int x, int z, ChunkPos out[4]) {
 // Persistence
 // ---------------------------------------------------------------------------------------
 
-std::vector<std::pair<ChunkPos, std::shared_ptr<const Chunk>>> World::modifiedChunks() const {
-    std::vector<std::pair<ChunkPos, std::shared_ptr<const Chunk>>> result;
+std::vector<SavedChunk> World::modifiedChunks() const {
+    std::vector<SavedChunk> result;
     for (const auto& [pos, e] : m_chunks) {
         if (e.modified && e.chunk) {
-            result.emplace_back(pos, e.chunk);
+            result.push_back(encodeChunk(pos, *e.chunk));
         }
     }
-    for (const auto& [pos, chunk] : m_storedModified) {
-        result.emplace_back(pos, chunk);
+    for (const auto& [pos, rle] : m_storedModified) {
+        result.push_back({pos, rle});
     }
     return result;
 }
 
-void World::addModifiedChunk(ChunkPos pos, std::shared_ptr<const Chunk> chunk) {
-    const auto it = m_chunks.find(pos);
-    if (it != m_chunks.end()) {
-        // Already loaded: replace the generated content (a fresh id drops stale jobs).
-        Entry& e = it->second;
-        if (e.generating) {
-            e.generating = false;
-        }
-        e.chunk = std::move(chunk);
-        e.modified = true;
-        e.meshDirty = true;
-        e.id = ++m_nextId;
-        e.meshing = false;
-        m_scanNeeded = true;
-        return;
+bool World::addModifiedChunk(const SavedChunk& saved) {
+    auto chunk = std::make_shared<Chunk>();
+    if (!decodeChunk(saved.rle, *chunk)) {
+        return false;
     }
-    m_storedModified[pos] = std::move(chunk);
+    const auto it = m_chunks.find(saved.pos);
+    if (it == m_chunks.end()) {
+        m_storedModified[saved.pos] = saved.rle;
+        return true;
+    }
+    // Already loaded: replace the generated content. A fresh id makes any result of
+    // in-flight jobs for the old content stale.
+    Entry& e = it->second;
+    e.id = ++m_nextId;
+    e.chunk = std::move(chunk);
+    e.generating = false;
+    e.meshing = false;
+    e.modified = true;
+    e.meshDirty = true;
+    // Border faces and AO of the neighbours depend on this chunk as well.
+    for (int dz = -1; dz <= 1; ++dz) {
+        for (int dx = -1; dx <= 1; ++dx) {
+            const auto n = m_chunks.find({saved.pos.x + dx, saved.pos.z + dz});
+            if (n != m_chunks.end() && n->second.chunk) {
+                n->second.meshDirty = true;
+            }
+        }
+    }
+    m_scanNeeded = true;
+    return true;
 }
 
 Vec3 World::findSpawnPoint(int nearX, int nearZ) const {

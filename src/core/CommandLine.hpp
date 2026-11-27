@@ -28,6 +28,8 @@ struct LaunchOptions {
     bool freshWorld = false;             // ignore an existing save file
     bool noSave = false;                 // never write save/settings files
     bool showHelp = false;
+    bool showDebug = false;              // start with the F3 overlay open
+    bool showMenu = false;               // start paused (useful for menu screenshots)
 };
 
 struct CommandLineResult {
