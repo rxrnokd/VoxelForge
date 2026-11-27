@@ -67,11 +67,15 @@ endfunction()
 # It has no raylib dependency so it can be unit tested without a GPU.
 # ---------------------------------------------------------------------------
 add_library(voxelforge_engine STATIC
+    src/core/Benchmark.cpp
     src/core/CommandLine.cpp
+    src/render/Mesher.cpp
+    src/render/TextureAtlas.cpp
     src/world/Block.cpp
     src/world/Chunk.cpp
     src/world/Noise.cpp
     src/world/TerrainGenerator.cpp
+    src/world/World.cpp
 )
 target_include_directories(voxelforge_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(voxelforge_engine PUBLIC Threads::Threads)
@@ -106,6 +110,7 @@ if(VOXELFORGE_BUILD_GAME)
     set(VOXELFORGE_SHADERS
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/chunk.vs
         ${CMAKE_CURRENT_SOURCE_DIR}/shaders/chunk.fs
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/water.fs
     )
     set(VOXELFORGE_SHADER_HEADER ${CMAKE_CURRENT_BINARY_DIR}/generated/EmbeddedShaders.hpp)
     add_custom_command(
@@ -119,6 +124,10 @@ if(VOXELFORGE_BUILD_GAME)
 
     add_executable(voxelforge
         src/main.cpp
+        src/core/Game.cpp
+        src/render/GpuMesh.cpp
+        src/render/Renderer.cpp
+        src/render/ShaderProgram.cpp
         ${VOXELFORGE_SHADER_HEADER}
     )
     target_include_directories(voxelforge PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -143,8 +152,10 @@ if(VOXELFORGE_BUILD_TESTS)
 
     add_executable(voxelforge_tests
         tests/test_main.cpp
+        tests/test_atlas.cpp
         tests/test_chunk.cpp
         tests/test_core.cpp
+        tests/test_mesher.cpp
         tests/test_noise.cpp
         tests/test_terrain.cpp
     )

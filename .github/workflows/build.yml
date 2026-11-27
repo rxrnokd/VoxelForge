@@ -37,6 +37,9 @@ jobs:
       - name: Unit tests
         run: ctest --test-dir build --output-on-failure
 
+      - name: Benchmark
+        run: ./build/voxelforge --benchmark --quick
+
       - name: Headless screenshot (Xvfb + Mesa llvmpipe)
         if: runner.os == 'Linux'
         env:
