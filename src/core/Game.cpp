@@ -362,6 +362,7 @@ void Game::render(const FrameInput& input) {
     m_camera.fovYRadians = m_settings.fovDegrees * kDegToRad;
     m_camera.aspect = static_cast<float>(GetScreenWidth()) / static_cast<float>(std::max(1, GetScreenHeight()));
     m_camera.farPlane = static_cast<float>(m_settings.renderDistance * kChunkSize) * 1.5f + 64.0f;
+    m_camera.maxChunkDistance = static_cast<float>((m_settings.renderDistance + 1) * kChunkSize);
 
     const IVec3 eye{fastFloor(m_camera.position.x), fastFloor(m_camera.position.y), fastFloor(m_camera.position.z)};
     const bool underwater = m_world->getBlock(eye.x, eye.y, eye.z) == BlockType::Water;

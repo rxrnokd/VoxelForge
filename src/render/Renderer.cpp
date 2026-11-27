@@ -82,6 +82,7 @@ void Renderer::collectVisible(const RenderCamera& camera) {
     m_stats.totalVertices = 0;
     m_stats.visibleVertices = 0;
     const Frustum frustum(camera.viewProjection());
+    const float maxDistanceSq = camera.maxChunkDistance * camera.maxChunkDistance;
     for (const auto& [pos, data] : m_chunks) {
         const std::int64_t vertices = data.opaque.vertexCount() + data.water.vertexCount();
         m_stats.totalVertices += vertices;
@@ -90,12 +91,14 @@ void Renderer::collectVisible(const RenderCamera& camera) {
                           static_cast<float>(pos.originZ()) - camera.position.z};
         const Vec3 boxMin{offset.x, offset.y + static_cast<float>(data.minY), offset.z};
         const Vec3 boxMax{offset.x + kChunkSize, offset.y + static_cast<float>(data.maxY), offset.z + kChunkSize};
-        if (!frustum.intersectsBox(boxMin, boxMax)) {
-            continue;
-        }
         const float cx = offset.x + kChunkSize * 0.5f;
         const float cz = offset.z + kChunkSize * 0.5f;
-        m_visible.push_back({&data, offset, cx * cx + cz * cz});
+        const float distanceSq = cx * cx + cz * cz;
+        // Chunks kept around past the view distance (e.g. after lowering it) are hidden.
+        if (distanceSq > maxDistanceSq || !frustum.intersectsBox(boxMin, boxMax)) {
+            continue;
+        }
+        m_visible.push_back({&data, offset, distanceSq});
         m_stats.visibleVertices += vertices;
     }
     m_stats.visibleChunks = static_cast<int>(m_visible.size());

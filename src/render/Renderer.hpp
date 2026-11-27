@@ -19,6 +19,7 @@ struct RenderCamera {
     float aspect = 16.0f / 9.0f;
     float nearPlane = 0.05f;
     float farPlane = 512.0f;
+    float maxChunkDistance = 1e9f; // horizontal distance beyond which chunks are skipped
 
     // The world is rendered relative to the camera (the camera sits at the origin) so
     // float precision stays high far away from the world origin.
