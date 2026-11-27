@@ -159,3 +159,35 @@ void Renderer::drawWorld(const RenderCamera& camera, const SceneLighting& lighti
 }
 
 } // namespace voxelforge
+
+namespace voxelforge {
+
+void Renderer::drawBlockOutline(const RenderCamera& camera, const IVec3& block) const {
+    // Same steps as raylib's BeginMode3D/EndMode3D, but with our camera-relative matrices
+    // so the lines share the depth buffer conventions of the chunk pass.
+    rlDrawRenderBatchActive();
+    const Mat4 projection = camera.projection();
+    const Mat4 view = camera.viewRotation();
+    rlMatrixMode(RL_PROJECTION);
+    rlPushMatrix();
+    rlLoadIdentity();
+    rlMultMatrixf(projection.m.data());
+    rlMatrixMode(RL_MODELVIEW);
+    rlLoadIdentity();
+    rlMultMatrixf(view.m.data());
+    rlEnableDepthTest();
+
+    const Vector3 center{static_cast<float>(block.x) + 0.5f - camera.position.x,
+                         static_cast<float>(block.y) + 0.5f - camera.position.y,
+                         static_cast<float>(block.z) + 0.5f - camera.position.z};
+    DrawCubeWires(center, 1.006f, 1.006f, 1.006f, Color{15, 15, 15, 230});
+
+    rlDrawRenderBatchActive();
+    rlMatrixMode(RL_PROJECTION);
+    rlPopMatrix();
+    rlMatrixMode(RL_MODELVIEW);
+    rlLoadIdentity();
+    rlDisableDepthTest();
+}
+
+} // namespace voxelforge

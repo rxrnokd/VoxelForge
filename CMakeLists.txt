@@ -71,6 +71,8 @@ add_library(voxelforge_engine STATIC
     src/core/CommandLine.cpp
     src/core/Settings.cpp
     src/physics/Collision.cpp
+    src/physics/Raycast.cpp
+    src/player/Inventory.cpp
     src/player/Player.cpp
     src/render/Mesher.cpp
     src/render/TextureAtlas.cpp
@@ -132,6 +134,7 @@ if(VOXELFORGE_BUILD_GAME)
         src/render/GpuMesh.cpp
         src/render/Renderer.cpp
         src/render/ShaderProgram.cpp
+        src/ui/Hud.cpp
         ${VOXELFORGE_SHADER_HEADER}
     )
     target_include_directories(voxelforge PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -163,6 +166,7 @@ if(VOXELFORGE_BUILD_TESTS)
         tests/test_mesher.cpp
         tests/test_noise.cpp
         tests/test_player.cpp
+        tests/test_raycast.cpp
         tests/test_terrain.cpp
     )
     target_include_directories(voxelforge_tests SYSTEM PRIVATE ${doctest_SOURCE_DIR})

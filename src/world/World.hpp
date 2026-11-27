@@ -6,6 +6,7 @@
 #include "world/TerrainGenerator.hpp"
 
 #include <cstdint>
+#include <array>
 #include <memory>
 #include <unordered_map>
 
@@ -27,6 +28,13 @@ public:
     Vec3 findSpawnPoint(int nearX, int nearZ) const;
     const Chunk* findChunk(ChunkPos pos) const;
     std::size_t loadedChunkCount() const { return m_chunks.size(); }
+
+    // Changes one block. Returns false when the chunk is not loaded or y is out of range.
+    bool setBlock(int x, int y, int z, BlockType type);
+
+    // Chunks whose mesh depends on the block at (x, z): its own chunk plus neighbours
+    // touching it (border faces and ambient occlusion). Returns the number written.
+    static int chunksAffectedBy(int x, int z, ChunkPos out[4]);
 
     // Generates every chunk within `radius` (plus a one chunk border for meshing).
     void generateArea(ChunkPos center, int radius);

@@ -1,5 +1,7 @@
 #include "core/Game.hpp"
 
+#include "physics/Collision.hpp"
+
 #include "raylib.h"
 
 #include <algorithm>
@@ -89,6 +91,16 @@ void Game::update(const FrameInput& input, float dt) {
     const float invert = m_settings.invertMouseY ? -1.0f : 1.0f;
     m_player.addLook(input.mouseDeltaX * sensitivity, -input.mouseDeltaY * sensitivity * invert);
 
+    if (input.hotbarSlot >= 0) {
+        m_inventory.select(input.hotbarSlot);
+        m_hud.notifySelectionChanged();
+    }
+    if (input.wheel != 0.0f) {
+        m_inventory.scroll(input.wheel);
+        m_hud.notifySelectionChanged();
+    }
+    m_hud.update(dt);
+
     // Fixed time step physics; rendering interpolates between the last two states.
     // Screenshots taken from an explicit --pos keep the camera frozen in place.
     if (!(m_screenshotMode && m_options.position)) {
@@ -96,6 +108,58 @@ void Game::update(const FrameInput& input, float dt) {
         while (m_physicsAccumulator >= kPhysicsStep) {
             m_player.step(*m_world, input.move, kPhysicsStep);
             m_physicsAccumulator -= kPhysicsStep;
+        }
+    }
+    updateBlockInteraction(input, dt);
+}
+
+void Game::updateBlockInteraction(const FrameInput& input, float dt) {
+    m_target = raycastBlocks(*m_world, m_player.eyePosition(), m_player.forward(), kReach);
+    m_breakCooldown = std::max(0.0f, m_breakCooldown - dt);
+    m_placeCooldown = std::max(0.0f, m_placeCooldown - dt);
+    if (!input.breakHeld) m_breakCooldown = 0.0f;
+    if (!input.placeHeld) m_placeCooldown = 0.0f;
+    if (!m_target) {
+        return;
+    }
+
+    if (input.pickPressed) {
+        m_inventory.pick(m_target->type);
+        m_hud.notifySelectionChanged();
+    }
+
+    if ((input.breakPressed || input.breakHeld) && m_breakCooldown <= 0.0f) {
+        if (m_target->type != BlockType::Bedrock) {
+            applyBlockChange(m_target->block, BlockType::Air);
+        }
+        m_breakCooldown = kRepeatInterval;
+        return;
+    }
+
+    if ((input.placePressed || input.placeHeld) && m_placeCooldown <= 0.0f && m_target->normal != IVec3{}) {
+        const IVec3 target = m_target->placementTarget();
+        const BlockType current = m_world->getBlock(target.x, target.y, target.z);
+        const BlockType block = m_inventory.selectedBlock();
+        const bool replaceable = current == BlockType::Air || current == BlockType::Water;
+        const bool blocksPlayer = isSolid(block) && AABB::fromBlock(target.x, target.y, target.z).intersects(m_player.bounds());
+        if (replaceable && !blocksPlayer && target.y >= 0 && target.y < kChunkHeight) {
+            applyBlockChange(target, block);
+        }
+        m_placeCooldown = kRepeatInterval;
+    }
+}
+
+void Game::applyBlockChange(const IVec3& block, BlockType type) {
+    if (!m_world->setBlock(block.x, block.y, block.z, type)) {
+        return;
+    }
+    ChunkPos affected[4];
+    const int count = World::chunksAffectedBy(block.x, block.z, affected);
+    ChunkMesher mesher;
+    ChunkMesh mesh;
+    for (int i = 0; i < count; ++i) {
+        if (m_world->buildMesh(affected[i], mesher, mesh)) {
+            m_renderer->setChunkMesh(affected[i], mesh);
         }
     }
 }
@@ -117,11 +181,10 @@ void Game::render() {
     BeginDrawing();
     ClearBackground(Color{158, 194, 242, 255});
     m_renderer->drawWorld(m_camera, lighting);
-    // Crosshair
-    const int cx = GetScreenWidth() / 2;
-    const int cy = GetScreenHeight() / 2;
-    DrawRectangle(cx - 9, cy - 1, 18, 2, Color{255, 255, 255, 200});
-    DrawRectangle(cx - 1, cy - 9, 2, 18, Color{255, 255, 255, 200});
+    if (m_target) {
+        m_renderer->drawBlockOutline(m_camera, m_target->block);
+    }
+    m_hud.draw(m_renderer->atlasTexture(), m_inventory, GetScreenWidth(), GetScreenHeight());
     DrawFPS(10, 10);
     EndDrawing();
 }

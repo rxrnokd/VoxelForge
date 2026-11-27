@@ -3,11 +3,15 @@
 #include "core/CommandLine.hpp"
 #include "core/Input.hpp"
 #include "core/Settings.hpp"
+#include "physics/Raycast.hpp"
+#include "player/Inventory.hpp"
 #include "player/Player.hpp"
 #include "render/Renderer.hpp"
+#include "ui/Hud.hpp"
 #include "world/World.hpp"
 
 #include <memory>
+#include <optional>
 
 namespace voxelforge {
 
@@ -22,9 +26,13 @@ public:
 
 private:
     static constexpr float kPhysicsStep = 1.0f / 120.0f;
+    static constexpr float kReach = 6.0f;            // blocks
+    static constexpr float kRepeatInterval = 0.22f;  // seconds between repeated break/place
 
     bool initialize();
     void update(const FrameInput& input, float dt);
+    void updateBlockInteraction(const FrameInput& input, float dt);
+    void applyBlockChange(const IVec3& block, BlockType type);
     void render();
     bool saveScreenshot() const;
 
@@ -37,6 +45,11 @@ private:
     std::unique_ptr<World> m_world;
     std::unique_ptr<Renderer> m_renderer;
     Player m_player;
+    Inventory m_inventory;
+    Hud m_hud;
+    std::optional<RaycastHit> m_target;
+    float m_breakCooldown = 0.0f;
+    float m_placeCooldown = 0.0f;
     RenderCamera m_camera;
     float m_physicsAccumulator = 0.0f;
     int m_renderDistance = 8;

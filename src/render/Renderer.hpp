@@ -59,6 +59,8 @@ public:
     bool hasChunk(ChunkPos pos) const { return m_chunks.contains(pos); }
 
     void drawWorld(const RenderCamera& camera, const SceneLighting& lighting);
+    // Wireframe box around the targeted block, depth tested against the world.
+    void drawBlockOutline(const RenderCamera& camera, const IVec3& block) const;
 
     const RenderStats& stats() const { return m_stats; }
     const Texture2D& atlasTexture() const { return m_atlas.get(); }

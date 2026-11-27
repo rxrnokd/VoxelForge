@@ -18,6 +18,33 @@ BlockType World::getBlock(int x, int y, int z) const {
     return chunk != nullptr ? chunk->get(x - pos.originX(), y, z - pos.originZ()) : BlockType::Air;
 }
 
+bool World::setBlock(int x, int y, int z, BlockType type) {
+    if (y < 0 || y >= kChunkHeight) {
+        return false;
+    }
+    const ChunkPos pos = ChunkPos::fromWorld(x, z);
+    const auto it = m_chunks.find(pos);
+    if (it == m_chunks.end()) {
+        return false;
+    }
+    it->second->set(x - pos.originX(), y, z - pos.originZ(), type);
+    return true;
+}
+
+int World::chunksAffectedBy(int x, int z, ChunkPos out[4]) {
+    const ChunkPos pos = ChunkPos::fromWorld(x, z);
+    const int lx = x - pos.originX();
+    const int lz = z - pos.originZ();
+    const int dx = lx == 0 ? -1 : (lx == kChunkSize - 1 ? 1 : 0);
+    const int dz = lz == 0 ? -1 : (lz == kChunkSize - 1 ? 1 : 0);
+    int n = 0;
+    out[n++] = pos;
+    if (dx != 0) out[n++] = {pos.x + dx, pos.z};
+    if (dz != 0) out[n++] = {pos.x, pos.z + dz};
+    if (dx != 0 && dz != 0) out[n++] = {pos.x + dx, pos.z + dz};
+    return n;
+}
+
 Vec3 World::findSpawnPoint(int nearX, int nearZ) const {
     // Walk an outward square spiral until we find dry land.
     int x = nearX;
