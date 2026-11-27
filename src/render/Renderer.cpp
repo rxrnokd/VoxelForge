@@ -1,6 +1,7 @@
 #include "render/Renderer.hpp"
 
 #include "EmbeddedShaders.hpp"
+#include "render/Frustum.hpp"
 #include "render/TextureAtlas.hpp"
 
 #include "rlgl.h"
@@ -80,11 +81,18 @@ void Renderer::collectVisible(const RenderCamera& camera) {
     m_stats.meshedChunks = static_cast<int>(m_chunks.size());
     m_stats.totalVertices = 0;
     m_stats.visibleVertices = 0;
+    const Frustum frustum(camera.viewProjection());
     for (const auto& [pos, data] : m_chunks) {
         const std::int64_t vertices = data.opaque.vertexCount() + data.water.vertexCount();
         m_stats.totalVertices += vertices;
+        // Camera-relative bounding box of the chunk's actual geometry.
         const Vec3 offset{static_cast<float>(pos.originX()) - camera.position.x, -camera.position.y,
                           static_cast<float>(pos.originZ()) - camera.position.z};
+        const Vec3 boxMin{offset.x, offset.y + static_cast<float>(data.minY), offset.z};
+        const Vec3 boxMax{offset.x + kChunkSize, offset.y + static_cast<float>(data.maxY), offset.z + kChunkSize};
+        if (!frustum.intersectsBox(boxMin, boxMax)) {
+            continue;
+        }
         const float cx = offset.x + kChunkSize * 0.5f;
         const float cz = offset.z + kChunkSize * 0.5f;
         m_visible.push_back({&data, offset, cx * cx + cz * cz});

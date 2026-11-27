@@ -1,7 +1,9 @@
 #include "core/Benchmark.hpp"
 
 #include "render/Mesher.hpp"
+#include "threading/ThreadPool.hpp"
 #include "world/TerrainGenerator.hpp"
+#include "world/World.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -102,6 +104,31 @@ int runBenchmark(const BenchmarkOptions& options) {
     std::printf("Greedy reduction   : %6.1f%% fewer vertices (%d chunks meshed)\n", reduction, meshed);
     std::printf("Vertex size        : %zu bytes -> %.1f KiB GPU memory per chunk (greedy)\n", sizeof(ChunkVertex),
                 static_cast<double>(greedy.vertices) / meshed * sizeof(ChunkVertex) / 1024.0);
+
+    // 3. End-to-end streaming through the worker pool (generation + meshing).
+    const int radius = options.quick ? 6 : 12;
+    const unsigned maxThreads = ThreadPool::defaultThreadCount();
+    std::printf("------------------------------------------------------------------\n");
+    std::printf("Streaming a radius-%d area (generation + greedy meshing):\n", radius);
+    std::vector<unsigned> threadCounts{1u};
+    if (maxThreads > 1u) {
+        threadCounts.push_back(maxThreads);
+    }
+    double singleThreadedMs = 0.0;
+    for (const unsigned threads : threadCounts) {
+        World world(options.seed, threads);
+        const auto start = Clock::now();
+        const bool ready = world.waitForArea({8.0f, 100.0f, 8.0f}, radius, radius, 300.0);
+        const double ms = millisecondsSince(start);
+        const std::size_t chunksMeshed = world.stats().meshedChunks;
+        std::printf("  %2u worker thread(s): %8.1f ms  %5zu chunks meshed  %7.0f chunks/s%s\n", threads, ms,
+                    chunksMeshed, static_cast<double>(chunksMeshed) / (ms / 1000.0), ready ? "" : "  (timed out)");
+        if (threads == 1u) {
+            singleThreadedMs = ms;
+        } else {
+            std::printf("  speed-up           : %.2fx\n", singleThreadedMs / ms);
+        }
+    }
     return 0;
 }
 

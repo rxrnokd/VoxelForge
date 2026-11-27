@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <limits>
 #include <utility>
 
 namespace voxelforge {
@@ -63,23 +64,32 @@ bool Game::initialize() {
     m_player.setLook(m_options.yawDegrees.value_or(30.0f) * kDegToRad,
                      m_options.pitchDegrees.value_or(m_screenshotMode ? -20.0f : 0.0f) * kDegToRad);
 
-    const ChunkPos center = ChunkPos::fromWorld(fastFloor(feet.x), fastFloor(feet.z));
-    m_world->generateArea(center, m_renderDistance);
-    ChunkMesher mesher;
-    ChunkMesh mesh;
-    for (int dz = -m_renderDistance; dz <= m_renderDistance; ++dz) {
-        for (int dx = -m_renderDistance; dx <= m_renderDistance; ++dx) {
-            const ChunkPos pos{center.x + dx, center.z + dz};
-            if (m_world->buildMesh(pos, mesher, mesh)) {
-                m_renderer->setChunkMesh(pos, mesh);
-            }
-        }
+    // Screenshots need the whole view distance; normal play starts once the area
+    // around the player is ready and keeps streaming in the background.
+    const int initialRadius = m_screenshotMode ? m_renderDistance : std::min(m_renderDistance, 3);
+    if (!m_world->waitForArea(m_player.eyePosition(), m_renderDistance, initialRadius, 120.0)) {
+        std::fprintf(stderr, "voxelforge: warning: world did not finish loading in time\n");
     }
+    streamWorld(std::numeric_limits<int>::max());
 
     if (!m_screenshotMode) {
         m_input.setCursorCaptured(true);
     }
     return true;
+}
+
+void Game::streamWorld(int uploadBudget) {
+    m_world->update(m_player.eyePosition(), m_renderDistance);
+    // Releases first: a chunk may unload and reload within one frame.
+    ChunkPos unloaded;
+    while (m_world->popUnloadedChunk(unloaded)) {
+        m_renderer->removeChunk(unloaded);
+    }
+    MeshUpdate update;
+    for (int uploaded = 0; uploaded < uploadBudget && m_world->popMeshUpdate(update); ++uploaded) {
+        m_renderer->setChunkMesh(update.pos, *update.mesh);
+        m_world->recycleMesh(std::move(update.mesh));
+    }
 }
 
 void Game::update(const FrameInput& input, float dt) {
@@ -103,7 +113,10 @@ void Game::update(const FrameInput& input, float dt) {
 
     // Fixed time step physics; rendering interpolates between the last two states.
     // Screenshots taken from an explicit --pos keep the camera frozen in place.
-    if (!(m_screenshotMode && m_options.position)) {
+    // The simulation waits until block data under the player exists.
+    const Vec3 feet = m_player.position();
+    const bool groundLoaded = m_world->isChunkLoaded(ChunkPos::fromWorld(fastFloor(feet.x), fastFloor(feet.z)));
+    if (!(m_screenshotMode && m_options.position) && groundLoaded) {
         m_physicsAccumulator = std::min(m_physicsAccumulator + dt, 0.25f);
         while (m_physicsAccumulator >= kPhysicsStep) {
             m_player.step(*m_world, input.move, kPhysicsStep);
@@ -111,6 +124,7 @@ void Game::update(const FrameInput& input, float dt) {
         }
     }
     updateBlockInteraction(input, dt);
+    streamWorld(kUploadsPerFrame);
 }
 
 void Game::updateBlockInteraction(const FrameInput& input, float dt) {
@@ -150,18 +164,8 @@ void Game::updateBlockInteraction(const FrameInput& input, float dt) {
 }
 
 void Game::applyBlockChange(const IVec3& block, BlockType type) {
-    if (!m_world->setBlock(block.x, block.y, block.z, type)) {
-        return;
-    }
-    ChunkPos affected[4];
-    const int count = World::chunksAffectedBy(block.x, block.z, affected);
-    ChunkMesher mesher;
-    ChunkMesh mesh;
-    for (int i = 0; i < count; ++i) {
-        if (m_world->buildMesh(affected[i], mesher, mesh)) {
-            m_renderer->setChunkMesh(affected[i], mesh);
-        }
-    }
+    // The world re-meshes affected chunks on the worker pool at high priority.
+    m_world->setBlock(block.x, block.y, block.z, type);
 }
 
 void Game::render() {

@@ -28,8 +28,10 @@ private:
     static constexpr float kPhysicsStep = 1.0f / 120.0f;
     static constexpr float kReach = 6.0f;            // blocks
     static constexpr float kRepeatInterval = 0.22f;  // seconds between repeated break/place
+    static constexpr int kUploadsPerFrame = 12;       // GPU mesh uploads per frame (hitch control)
 
     bool initialize();
+    void streamWorld(int uploadBudget);
     void update(const FrameInput& input, float dt);
     void updateBlockInteraction(const FrameInput& input, float dt);
     void applyBlockChange(const IVec3& block, BlockType type);

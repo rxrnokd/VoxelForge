@@ -74,8 +74,10 @@ add_library(voxelforge_engine STATIC
     src/physics/Raycast.cpp
     src/player/Inventory.cpp
     src/player/Player.cpp
+    src/render/Frustum.cpp
     src/render/Mesher.cpp
     src/render/TextureAtlas.cpp
+    src/threading/ThreadPool.cpp
     src/world/Block.cpp
     src/world/Chunk.cpp
     src/world/Noise.cpp
@@ -163,10 +165,13 @@ if(VOXELFORGE_BUILD_TESTS)
         tests/test_chunk.cpp
         tests/test_collision.cpp
         tests/test_core.cpp
+        tests/test_frustum.cpp
         tests/test_mesher.cpp
         tests/test_noise.cpp
         tests/test_player.cpp
         tests/test_raycast.cpp
+        tests/test_threadpool.cpp
+        tests/test_world.cpp
         tests/test_terrain.cpp
     )
     target_include_directories(voxelforge_tests SYSTEM PRIVATE ${doctest_SOURCE_DIR})
