@@ -170,6 +170,7 @@ if(VOXELFORGE_BUILD_TESTS)
 
     add_executable(voxelforge_tests
         tests/test_main.cpp
+        tests/test_allocations.cpp
         tests/test_atlas.cpp
         tests/test_chunk.cpp
         tests/test_collision.cpp

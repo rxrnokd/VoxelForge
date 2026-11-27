@@ -45,7 +45,7 @@ jobs:
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
-          xvfb-run -a -s "-screen 0 1280x720x24" ./build/voxelforge --screenshot screenshot.png --no-save
+          xvfb-run -a -s "-screen 0 1280x720x24" ./build/voxelforge --screenshot screenshot.png --debug --no-save
           test -s screenshot.png
 
       - name: Upload screenshot
@@ -65,6 +65,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
+            libgl1-mesa-dev libglu1-mesa-dev xvfb libgl1-mesa-dri
+
       - name: Allow ThreadSanitizer memory mappings
         # Ubuntu 24.04 runners use 32 bits of mmap randomisation, which TSan cannot handle.
         run: sudo sysctl vm.mmap_rnd_bits=28
@@ -72,7 +79,7 @@ jobs:
       - name: Configure
         run: >
           cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DVOXELFORGE_WERROR=ON
-          -DVOXELFORGE_BUILD_GAME=OFF -DVOXELFORGE_${{ matrix.sanitizer }}=ON
+          -DVOXELFORGE_${{ matrix.sanitizer }}=ON
 
       - name: Build
         run: cmake --build build --parallel
@@ -83,3 +90,15 @@ jobs:
           UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
           TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
         run: ctest --test-dir build --output-on-failure
+
+      - name: Game under the sanitizer (streaming, meshing, rendering)
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          # Leak checking stays on for the unit tests; Mesa's driver allocations are not ours.
+          ASAN_OPTIONS: detect_leaks=0:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+          TSAN_OPTIONS: halt_on_error=1
+        run: |
+          xvfb-run -a -s "-screen 0 1280x720x24" ./build/voxelforge --screenshot sanitized.png \
+            --frames 60 --render-distance 6 --width 640 --height 360 --no-save
+          test -s sanitized.png

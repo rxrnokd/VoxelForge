@@ -381,7 +381,9 @@ void Game::render(const FrameInput& input) {
     }
 
     m_hud.draw(m_renderer->atlasTexture(), m_inventory, GetScreenWidth(), GetScreenHeight());
-    m_debug.draw(collectDebugInfo());
+    if (m_debug.visible()) {
+        m_debug.draw(collectDebugInfo()); // stats walk every chunk: only when shown
+    }
 
     if (m_paused) {
         const PauseMenu::Action action = m_pauseMenu.draw(m_settings, input, GetScreenWidth(), GetScreenHeight(),
