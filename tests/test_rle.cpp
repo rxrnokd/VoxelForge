@@ -4,6 +4,7 @@
 #include "io/Rle.hpp"
 #include "world/TerrainGenerator.hpp"
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -30,9 +31,9 @@ TEST_CASE("rle: round trips assorted inputs") {
     for (auto& b : random) b = static_cast<std::uint8_t>(rng.nextBelow(4));
     CHECK(roundTrips(random));
     // Runs longer than 127 need multi-byte varints.
-    std::vector<std::uint8_t> mixed(200, 1);
-    mixed.insert(mixed.end(), 20000, 2);
-    mixed.push_back(3);
+    std::vector<std::uint8_t> mixed(20201, 2);
+    std::fill_n(mixed.begin(), 200, std::uint8_t{1});
+    mixed.back() = 3;
     CHECK(roundTrips(mixed));
 }
 
