@@ -1,5 +1,6 @@
 #pragma once
 
+#include "physics/AABB.hpp"
 #include "render/Mesher.hpp"
 #include "world/Chunk.hpp"
 #include "world/TerrainGenerator.hpp"
@@ -11,7 +12,7 @@
 namespace voxelforge {
 
 // Collection of loaded chunks. (Synchronous version; streaming arrives with the thread pool.)
-class World {
+class World : public VoxelQuery {
 public:
     explicit World(std::uint64_t seed);
 
@@ -19,6 +20,11 @@ public:
     const TerrainGenerator& generator() const { return m_generator; }
 
     BlockType getBlock(int x, int y, int z) const;
+    BlockType blockAt(int x, int y, int z) const override { return getBlock(x, y, z); }
+    bool isChunkLoaded(ChunkPos pos) const { return findChunk(pos) != nullptr; }
+
+    // A walkable spawn point (feet position) near the given column.
+    Vec3 findSpawnPoint(int nearX, int nearZ) const;
     const Chunk* findChunk(ChunkPos pos) const;
     std::size_t loadedChunkCount() const { return m_chunks.size(); }
 

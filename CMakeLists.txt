@@ -69,6 +69,9 @@ endfunction()
 add_library(voxelforge_engine STATIC
     src/core/Benchmark.cpp
     src/core/CommandLine.cpp
+    src/core/Settings.cpp
+    src/physics/Collision.cpp
+    src/player/Player.cpp
     src/render/Mesher.cpp
     src/render/TextureAtlas.cpp
     src/world/Block.cpp
@@ -125,6 +128,7 @@ if(VOXELFORGE_BUILD_GAME)
     add_executable(voxelforge
         src/main.cpp
         src/core/Game.cpp
+        src/core/Input.cpp
         src/render/GpuMesh.cpp
         src/render/Renderer.cpp
         src/render/ShaderProgram.cpp
@@ -154,9 +158,11 @@ if(VOXELFORGE_BUILD_TESTS)
         tests/test_main.cpp
         tests/test_atlas.cpp
         tests/test_chunk.cpp
+        tests/test_collision.cpp
         tests/test_core.cpp
         tests/test_mesher.cpp
         tests/test_noise.cpp
+        tests/test_player.cpp
         tests/test_terrain.cpp
     )
     target_include_directories(voxelforge_tests SYSTEM PRIVATE ${doctest_SOURCE_DIR})

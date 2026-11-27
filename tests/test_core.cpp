@@ -2,6 +2,7 @@
 
 #include "core/CommandLine.hpp"
 #include "core/Math.hpp"
+#include "core/Settings.hpp"
 
 #include <array>
 
@@ -91,4 +92,28 @@ TEST_CASE("math: yaw/pitch direction convention") {
     CHECK(right.x == doctest::Approx(1.0f));
     const Vec3 up = directionFromYawPitch(0.0f, kPi / 2.0f);
     CHECK(up.y == doctest::Approx(1.0f));
+}
+
+TEST_CASE("settings: serialize/parse round trip") {
+    Settings s;
+    s.mouseSensitivity = 0.25f;
+    s.renderDistance = 14;
+    s.fovDegrees = 90.0f;
+    s.invertMouseY = true;
+    s.vsync = false;
+    s.dayLengthSeconds = 120.0f;
+    const Settings back = Settings::parse(s.serialize());
+    CHECK(back.mouseSensitivity == doctest::Approx(0.25f));
+    CHECK(back.renderDistance == 14);
+    CHECK(back.fovDegrees == doctest::Approx(90.0f));
+    CHECK(back.invertMouseY);
+    CHECK_FALSE(back.vsync);
+    CHECK(back.dayLengthSeconds == doctest::Approx(120.0f));
+}
+
+TEST_CASE("settings: invalid values are clamped or ignored") {
+    const Settings s = Settings::parse("render_distance = 500\nmouse_sensitivity = abc\n# comment\nnonsense\nfov=10\n");
+    CHECK(s.renderDistance == Settings::kMaxRenderDistance);
+    CHECK(s.mouseSensitivity == doctest::Approx(Settings{}.mouseSensitivity));
+    CHECK(s.fovDegrees == doctest::Approx(40.0f));
 }

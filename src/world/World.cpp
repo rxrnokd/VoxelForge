@@ -18,6 +18,35 @@ BlockType World::getBlock(int x, int y, int z) const {
     return chunk != nullptr ? chunk->get(x - pos.originX(), y, z - pos.originZ()) : BlockType::Air;
 }
 
+Vec3 World::findSpawnPoint(int nearX, int nearZ) const {
+    // Walk an outward square spiral until we find dry land.
+    int x = nearX;
+    int z = nearZ;
+    int dx = 1;
+    int dz = 0;
+    int legLength = 1;
+    int legProgress = 0;
+    int turns = 0;
+    for (int i = 0; i < 4096; ++i) {
+        const int height = m_generator.surfaceHeight(x, z);
+        if (height > kSeaLevel) {
+            return {static_cast<float>(x) + 0.5f, static_cast<float>(height + 1), static_cast<float>(z) + 0.5f};
+        }
+        x += dx * 8;
+        z += dz * 8;
+        if (++legProgress == legLength) {
+            legProgress = 0;
+            const int t = dx;
+            dx = -dz;
+            dz = t;
+            if (++turns % 2 == 0) {
+                ++legLength;
+            }
+        }
+    }
+    return {static_cast<float>(nearX) + 0.5f, static_cast<float>(kSeaLevel + 1), static_cast<float>(nearZ) + 0.5f};
+}
+
 void World::generateArea(ChunkPos center, int radius) {
     const int r = radius + 1;
     for (int dz = -r; dz <= r; ++dz) {
